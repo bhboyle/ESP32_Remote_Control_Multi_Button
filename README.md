@@ -4,5 +4,6 @@ The project currently uses a Lolin32 lite connected to a daughter board that has
 
 The project is ment to be totaly portable and powered by a Liion battery.
 
-The Lolin32 lite board is very energy efficitent and I expect to get at least 80 days or so on a full charge out of a 2000Mah battery
+The Lolin32 lite board is very energy efficitent and I expect to get at least 80 days or so on a full charge out of a 2000Mah battery. I may change to a flat lipo battery that has less capacity but that will be determined by how long I get from the 18650 I am currently using.
 
+I also may make a complete board that has only an ESP32 module rather than using the Lolin32 board. Not sure yet.
