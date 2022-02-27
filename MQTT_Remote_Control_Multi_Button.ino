@@ -17,8 +17,8 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define connectedLED 13 // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
 #define batteryVOLTAGE 34 // The analog pin of the voltage divider that reads the battery voltage
 // This next one needs to be calibrated before use
-//#define BATTERYMULTIPLIER 0.0093533487297921 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
-#define BATTERYMULTIPLIER 0.0017958833619211
+#define BATTERYMULTIPLIER 0.0017958833619211 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
+
 #define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case  
@@ -38,8 +38,12 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define button4Topic "outTopic"
 #define button4Message "YAY!!!!"
 
-#define batteryMessage "Remote1/Battery/Voltage"
-#define wifiSignal "Remote1/Wifi/strength"
+//#define batteryMessage "Remote1/Battery/Voltage"
+//#define wifiSignal "Remote1/Wifi/strength"
+
+char deviceName[] = "Remote1";
+char batteryMessage[] = "/Battery/Voltage";
+char wifiSignal[] = "/Wifi/strength";
 
 char ssid[] = "gallifrey";   // WIFI network SSID name
 char pass[] = "rockstar";    // WIFI network password 
@@ -64,8 +68,6 @@ IPAddress subnet(255, 255, 255, 0);
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
 
-
-  
 void setup(){
 
   //Serial.begin(115200);
@@ -130,11 +132,20 @@ void setup(){
   char result[8]; // Buffer to convert battery voltage float in to a Char array
   dtostrf(volts, 6, 2, result); // do the actual conversion from Float to Char
 
+  // the following code adds deviceName and batteryMessage together into a buffer to use as the MQTT topic
+  char buf[30]; // create the buffer
+  strcpy(buf, deviceName);  // put deviceName into it
+  strcpy(buf + strlen(deviceName), batteryMessage); // add the battery message to the deviceName
+
   // publish battery voltage to MQTT server
-  client.publish(batteryMessage , result);
+  client.publish(buf , result);
+
+  // reset and do the same thing for the wifiSignal topic
+  strcpy(buf, deviceName);  // reset and copy deviceName into the buffer
+  strcpy(buf + strlen(deviceName), wifiSignal); // add wifiSignal to the buffer
 
   //send the wifi signal strength to the MQTT server
-  client.publish(wifiSignal , cstr);
+  client.publish(buf , cstr);
 
   //ste the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
