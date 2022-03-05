@@ -16,6 +16,8 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define failedLED 12 // Digital pin for LED that will be used to indicate a failed connection to WIFI
 #define connectedLED 13 // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
 #define batteryVOLTAGE 34 // The analog pin of the voltage divider that reads the battery voltage
+#define thresholdVoltage 3.4 // The voltage that starts the blinking to idicate a low voltage in the battery
+
 // This next one needs to be calibrated before use
 #define BATTERYMULTIPLIER 0.0017159420289855 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
@@ -118,7 +120,7 @@ void setup(){
   float volts = getBatteryVoltage();
 
   // if the battery voltage is below 3.4 volts the set the batteryStatus flag
-  if (volts < 3.4) {
+  if (volts < thresholdVoltage) {
     batteryStatus = true;
   }
 
@@ -162,9 +164,9 @@ void setup(){
       int temp =0;
       while(temp < 5) {
         digitalWrite(failedLED, HIGH);
-        delay(1000);
+        delay(500);
         digitalWrite(failedLED, LOW);
-        delay(1000);
+        delay(100);
         temp++;
       }
       
