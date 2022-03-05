@@ -17,7 +17,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define connectedLED 13 // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
 #define batteryVOLTAGE 34 // The analog pin of the voltage divider that reads the battery voltage
 // This next one needs to be calibrated before use
-#define BATTERYMULTIPLIER 0.0017958833619211 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
+#define BATTERYMULTIPLIER 0.0017159420289855 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
 #define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 
@@ -40,6 +40,9 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 
 //#define batteryMessage "Remote1/Battery/Voltage"
 //#define wifiSignal "Remote1/Wifi/strength"
+
+bool batteryStatus = false; // True if the battery is below 3.4 volts
+bool connectStatus = false;
 
 char deviceName[] = "Remote1";
 char batteryMessage[] = "/Battery/Voltage";
@@ -94,7 +97,7 @@ void setup(){
       if (count > 60) { break;} // it is had been trying to connect to the WIFI for 60 * 50 milliseconds the stop trying
   }
 
-    if (WiFi.status() != WL_CONNECTED) { // if it can not connet to the wifi
+   if (WiFi.status() != WL_CONNECTED) { // if it can not connet to the wifi
             // light red LED
             digitalWrite(failedLED, HIGH);  // turn on the failedLED
 
@@ -106,10 +109,18 @@ void setup(){
 
             esp_deep_sleep_start(); // go to deep sleep
 
-    }
+    } 
 
   // get the wifi signal strenth to send to the MQTT server
   int wifiStrength = WiFi.RSSI();
+
+  // read the battery voltage via an analog read and convert it to a basic float
+  float volts = getBatteryVoltage();
+
+  // if the battery voltage is below 3.4 volts the set the batteryStatus flag
+  if (volts < 3.4) {
+    batteryStatus = true;
+  }
 
   // convert the wifi signal strength to a char array for sending to the MQTT server
   char cstr[16]; // buffer to hold the conversion of the int to char
@@ -125,9 +136,6 @@ void setup(){
 
   //call the function that will react to button pushes
   print_GPIO_wake_up();
-
-  // read the battery voltage via an analog read and convert it to a basic float
-  float volts = getBatteryVoltage();
 
   char result[8]; // Buffer to convert battery voltage float in to a Char array
   dtostrf(volts, 6, 2, result); // do the actual conversion from Float to Char
@@ -147,11 +155,29 @@ void setup(){
   //send the wifi signal strength to the MQTT server
   client.publish(buf , cstr);
 
+  // if the batteryStatus flag is set the flash the failed LED five times
+
+  if (batteryStatus) {
+
+      int temp =0;
+      while(temp < 5) {
+        digitalWrite(failedLED, HIGH);
+        delay(1000);
+        digitalWrite(failedLED, LOW);
+        delay(1000);
+        temp++;
+      }
+      
+
+  }
+
+
   //ste the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
-
+  
   //Go to sleep now
-  delay(1000);
+  delay(1500);
+  
   esp_deep_sleep_start();
 
 }
