@@ -158,16 +158,15 @@ void setup(){
   client.publish(buf , cstr);
 
   // if the batteryStatus flag is set the flash the failed LED five times
-
   if (batteryStatus) {
 
-      int temp =0;
-      while(temp < 5) {
-        digitalWrite(failedLED, HIGH);
-        delay(500);
-        digitalWrite(failedLED, LOW);
-        delay(100);
-        temp++;
+      int temp =0;  // create a temp variable to track the blinking loop
+      while(temp < 5) { // while loop start 
+        digitalWrite(failedLED, HIGH);  // turn the LED on
+        delay(500); // wait a short period
+        digitalWrite(failedLED, LOW); // turn the LED off
+        delay(100); // wait again
+        temp++; // increment the temp variable
       }
       
 
