@@ -19,13 +19,14 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define thresholdVoltage 3.4 // The voltage that starts the blinking to idicate a low voltage in the battery
 
 // This next one needs to be calibrated before use
-#define BATTERYMULTIPLIER 0.0017159420289855 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
+#define BATTERYMULTIPLIER 0.0017808680994522 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
 #define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case  
 #define button1 15
-#define button1Topic "outTopic"
+//#define button1Topic "outTopic"
+#define button1Topic "door/control"
 #define button1Message "left"
 
 #define button2 27
@@ -33,12 +34,12 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define button2Message "right"
 
 #define button3 32
-#define button3Topic "outTopic"
-#define button3Message "shed"
+#define button3Topic "time/sunset"
+#define button3Message "on"
 
 #define button4 33
-#define button4Topic "outTopic"
-#define button4Message "YAY!!!!"
+#define button4Topic "time/sunset"
+#define button4Message "off"
 
 //#define batteryMessage "Remote1/Battery/Voltage"
 //#define wifiSignal "Remote1/Wifi/strength"
@@ -61,11 +62,11 @@ int port = 1883;  // TCPIP port used by the MQTT server
 
 IPAddress server(172, 17, 17, 10); // IP address of the MQTT server
 
-//The server url of the HTTP request
+//The server url for the HTTP request
 String serverName = "http://192.168.1.106:1880/update-sensor";
 
 // Set your Static IP address, gateway and submet mask
-IPAddress local_IP(172, 17, 17, 6);
+IPAddress local_IP(172, 17, 17, 250); 
 IPAddress gateway(172, 17, 17, 1);
 IPAddress subnet(255, 255, 255, 0);
 
