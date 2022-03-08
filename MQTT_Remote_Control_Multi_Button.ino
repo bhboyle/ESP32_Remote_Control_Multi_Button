@@ -140,6 +140,41 @@ void setup(){
 
   //connect to MQTT server
   client.connect(clientID, username, password);
+  
+  
+    int temp = 0;
+  while(!client.connected()) {
+      if (temp<5){
+            if(client.connect(clientID, username, password)) {
+              break;
+            }
+            delay(100);
+            temp++;
+            
+          } else{
+
+              int temp2 =0;  // create a temp variable to track the blinking loop
+              while(temp2 < 5) { // while loop start 
+                digitalWrite(connectedLED, HIGH);  // turn the LED on
+                delay(500); // wait a short period
+                digitalWrite(connectedLED, LOW); // turn the LED off
+                delay(100); // wait again
+                temp2++; // increment the temp variable
+              }
+               client.disconnect(); // disconnect from the MQTT server before shuttng down
+
+                //ste the correct deep sleep mode
+                esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
+                
+                //Go to sleep now
+                delay(1500);
+                
+                esp_deep_sleep_start();
+
+
+          }
+  }
+  
 
   delay(250); // give the MQTT client code time to settle
 
@@ -250,19 +285,28 @@ void print_GPIO_wake_up(){
     {
       case button1:
           // Send MQTT messaage for opening and closing the Left door
-          client.publish(button1Topic, button1Message);
+          if (!client.publish(button1Topic, button1Message)) {
+            client.publish(button1Topic, button1Message);
+          }
           break;
       case button2:
           // Send MQTT messaage for opening and closing the Right garage door
-          client.publish(button2Topic, button2Message);
+          if (!client.publish(button2Topic, button2Message)) {
+            client.publish(button2Topic, button2Message);
+          }
           break;      
       case button3:
           // Send MQTT messaage for opening and closing the Shed garage door
-          client.publish(button3Topic, button3Message);
+          
+          if (!client.publish(button3Topic, button3Message)) {
+            client.publish(button3Topic, button3Message);
+          }
           break;
       case button4:
           // Do nothing becuase this button has not yet be given a use
-          client.publish(button4Topic, button4Message);
+          if (!client.publish(button4Topic, button4Message)) {
+            client.publish(button4Topic, button4Message);
+          }
           // sendHTTPrequest(); //call the HTTP request function
           break;
       default :
