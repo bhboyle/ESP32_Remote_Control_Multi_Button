@@ -135,10 +135,9 @@ void setup(){
   char cstr[16]; // buffer to hold the conversion of the int to char
   itoa(wifiStrength, cstr, 10); // do the actual conversion
 
-
-
   // set the server deatils for the MQTT object
   client.setServer(server, 1883);
+
   //connect to MQTT server
   client.connect(clientID, username, password);
 
@@ -177,10 +176,9 @@ void setup(){
         temp++; // increment the temp variable
       }
       
-
   }
 
-  client.disconnect();
+  client.disconnect(); // disconnect from the MQTT server before shuttng down
 
   //ste the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
@@ -195,7 +193,6 @@ void setup(){
 void loop(){
   //This is not going to be called
 }
-
 
 /*
   Functiont that reads the battery voltage by doing an analog read and then converting the 
@@ -252,15 +249,15 @@ void print_GPIO_wake_up(){
     switch(reason) // Take the result and react depending on what button was pressed.
     {
       case button1:
-          // Send MQTT messaage for opening and closing the shed door
+          // Send MQTT messaage for opening and closing the Left door
           client.publish(button1Topic, button1Message);
           break;
       case button2:
-          // Send MQTT messaage for opening and closing the left garage door
+          // Send MQTT messaage for opening and closing the Right garage door
           client.publish(button2Topic, button2Message);
           break;      
       case button3:
-          // Send MQTT messaage for opening and closing the right garage door
+          // Send MQTT messaage for opening and closing the Shed garage door
           client.publish(button3Topic, button3Message);
           break;
       case button4:
