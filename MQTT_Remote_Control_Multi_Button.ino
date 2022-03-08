@@ -1,5 +1,5 @@
 /*
-MQTT remote control
+MQTT remote control multi button version
 
 Each button sends a different MQTT message
 The ESP32 sits in deep sleep until the button is pressed.
@@ -21,6 +21,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 // This next one needs to be calibrated before use
 #define BATTERYMULTIPLIER 0.0017808680994522 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
+// This next definition is a bitmask use the set the interupt pins for waking up the esp32 from deep sleep 
 #define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case  
@@ -114,6 +115,11 @@ void setup(){
 
     } 
 
+  // turn on connected LED
+  digitalWrite(connectedLED, HIGH);
+
+  delay(200); // give the WIFI some time to settle
+
   // get the wifi signal strenth to send to the MQTT server
   int wifiStrength = WiFi.RSSI();
 
@@ -129,13 +135,14 @@ void setup(){
   char cstr[16]; // buffer to hold the conversion of the int to char
   itoa(wifiStrength, cstr, 10); // do the actual conversion
 
-  // turn on connected LED
-  digitalWrite(connectedLED, HIGH);
+
 
   // set the server deatils for the MQTT object
   client.setServer(server, 1883);
   //connect to MQTT server
   client.connect(clientID, username, password);
+
+  delay(250); // give the MQTT client code time to settle
 
   //call the function that will react to button pushes
   print_GPIO_wake_up();
@@ -158,7 +165,7 @@ void setup(){
   //send the wifi signal strength to the MQTT server
   client.publish(buf , cstr);
 
-  // if the batteryStatus flag is set the flash the failed LED five times
+  // if the batteryStatus flag is set, flash the failed LED five times to indicate a low battery
   if (batteryStatus) {
 
       int temp =0;  // create a temp variable to track the blinking loop
@@ -173,6 +180,7 @@ void setup(){
 
   }
 
+  client.disconnect();
 
   //ste the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
@@ -187,6 +195,7 @@ void setup(){
 void loop(){
   //This is not going to be called
 }
+
 
 /*
   Functiont that reads the battery voltage by doing an analog read and then converting the 
