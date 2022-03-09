@@ -45,6 +45,8 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#define batteryMessage "Remote1/Battery/Voltage"
 //#define wifiSignal "Remote1/Wifi/strength"
 
+bool debug = 0; 
+
 bool batteryStatus = false; // True if the battery is below 3.4 volts
 bool connectStatus = false;
 
@@ -55,8 +57,8 @@ char wifiSignal[] = "/Wifi/strength";
 char ssid[] = "gallifrey";   // WIFI network SSID name
 char pass[] = "rockstar";    // WIFI network password 
 
-char clientID[] = "mqttRemoteControl"; // this should be changed for any additonal devices
-char username[] = "garage"; // what username is used by the MQTT server
+//char clientID[] = "mqttRemoteControl"; // this should be changed for any additonal devices
+char username[] = "remote1"; // what username is used by the MQTT server
 char password[] = "Hanafranastan1!";  // what password is used by the MQTT server
 
 int port = 1883;  // TCPIP port used by the MQTT server
@@ -77,7 +79,7 @@ PubSubClient client(wifiClient);
 
 void setup(){
 
-  //Serial.begin(115200);
+  if (debug) {Serial.begin(115200);}
 
   pinMode(failedLED, OUTPUT); // set the failedLED pin to output
   pinMode(connectedLED, OUTPUT); // set the connectedLED pin to output
@@ -118,7 +120,9 @@ void setup(){
   // turn on connected LED
   digitalWrite(connectedLED, HIGH);
 
-  delay(200); // give the WIFI some time to settle
+  if (debug) {Serial.println("WIFI connected");}
+
+  //delay(200); // give the WIFI some time to settle
 
   // get the wifi signal strenth to send to the MQTT server
   int wifiStrength = WiFi.RSSI();
@@ -139,13 +143,13 @@ void setup(){
   client.setServer(server, 1883);
 
   //connect to MQTT server
-  client.connect(clientID, username, password);
+  client.connect(deviceName, username, password);
   
   
     int temp = 0;
   while(!client.connected()) {
       if (temp<5){
-            if(client.connect(clientID, username, password)) {
+            if(client.connect(deviceName, username, password)) {
               break;
             }
             delay(100);
@@ -163,6 +167,8 @@ void setup(){
               }
                client.disconnect(); // disconnect from the MQTT server before shuttng down
 
+                Serial.println("Failed to connect to MQTT server");
+
                 //ste the correct deep sleep mode
                 esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
                 
@@ -174,9 +180,10 @@ void setup(){
 
           }
   }
-  
 
-  delay(250); // give the MQTT client code time to settle
+  if (debug) {Serial.println("Connected to MQTT server");  }
+
+  //delay(500); // give the MQTT client code time to settle
 
   //call the function that will react to button pushes
   print_GPIO_wake_up();
@@ -215,9 +222,12 @@ void setup(){
 
   client.disconnect(); // disconnect from the MQTT server before shuttng down
 
+  if (debug) {Serial.println("Disconnected from MQTT server");}
+
   //ste the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
   
+  if (debug) {Serial.println("Going to sleep now");}
   //Go to sleep now
   delay(1500);
   
@@ -277,7 +287,9 @@ void sendHTTPrequest() {
 Function to react to which GPIO that triggered the wakeup. OR expressed differently, what button was pushed
 */
 void print_GPIO_wake_up(){
-  
+  //delay(500);
+    if (debug) {Serial.println("Start of Select Case");}
+
     uint64_t GPIO_reason = esp_sleep_get_ext1_wakeup_status(); // find out what button was pushed
     int reason = (log(GPIO_reason))/log(2); // convert that data to a GPIO number
 
@@ -286,26 +298,51 @@ void print_GPIO_wake_up(){
       case button1:
           // Send MQTT messaage for opening and closing the Left door
           if (!client.publish(button1Topic, button1Message)) {
-            client.publish(button1Topic, button1Message);
+            if (!client.publish(button1Topic, button1Message)) {
+              client.publish(button1Topic, button1Message);
+            }
           }
           break;
       case button2:
           // Send MQTT messaage for opening and closing the Right garage door
           if (!client.publish(button2Topic, button2Message)) {
-            client.publish(button2Topic, button2Message);
+            if (!client.publish(button2Topic, button2Message)) {
+                client.publish(button2Topic, button2Message);
+            }
           }
           break;      
       case button3:
           // Send MQTT messaage for opening and closing the Shed garage door
-          
+          if (debug) {
+                Serial.println("Button 3 pushed");
+                Serial.println("First layer of sending to MQTT server");
+          }
           if (!client.publish(button3Topic, button3Message)) {
-            client.publish(button3Topic, button3Message);
+            delay(100);
+            if (debug) {Serial.println("Layer two of sending to MQTT server");}
+            if (!client.publish(button3Topic, button3Message)){
+              if (debug) {Serial.println("Third Layer of sending to MQTT server");}
+              delay(100);
+              client.publish(button3Topic, button3Message);
+              
+            }
           }
           break;
       case button4:
           // Do nothing becuase this button has not yet be given a use
+          if (debug) {
+                Serial.println("Button 4 pushed");
+                Serial.println("First layer of sending to MQTT server");
+          }
           if (!client.publish(button4Topic, button4Message)) {
-            client.publish(button4Topic, button4Message);
+            if (debug) {Serial.println("Second Layer of sending to MQTT server");}
+            delay(100);
+            if (!client.publish(button4Topic, button4Message)) {
+              if (debug) {Serial.println("Third Layer of sending to MQTT server");}
+              delay(100);
+              client.publish(button4Topic, button4Message);
+
+            }
           }
           // sendHTTPrequest(); //call the HTTP request function
           break;
@@ -315,4 +352,5 @@ void print_GPIO_wake_up(){
 
     }
 
+    if (debug) {Serial.println("End of select case function");}
 }
