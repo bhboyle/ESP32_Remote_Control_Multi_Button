@@ -45,8 +45,6 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#define batteryMessage "Remote1/Battery/Voltage"
 //#define wifiSignal "Remote1/Wifi/strength"
 
-bool debug = 0; 
-
 bool batteryStatus = false; // True if the battery is below 3.4 volts
 bool connectStatus = false;
 
@@ -57,7 +55,6 @@ char wifiSignal[] = "/Wifi/strength";
 char ssid[] = "gallifrey";   // WIFI network SSID name
 char pass[] = "rockstar";    // WIFI network password 
 
-//char clientID[] = "mqttRemoteControl"; // this should be changed for any additonal devices
 char username[] = "remote1"; // what username is used by the MQTT server
 char password[] = "Hanafranastan1!";  // what password is used by the MQTT server
 
@@ -78,8 +75,6 @@ WiFiClient wifiClient;
 PubSubClient client(wifiClient);
 
 void setup(){
-
-  if (debug) {Serial.begin(115200);}
 
   pinMode(failedLED, OUTPUT); // set the failedLED pin to output
   pinMode(connectedLED, OUTPUT); // set the connectedLED pin to output
@@ -120,10 +115,6 @@ void setup(){
   // turn on connected LED
   digitalWrite(connectedLED, HIGH);
 
-  if (debug) {Serial.println("WIFI connected");}
-
-  //delay(200); // give the WIFI some time to settle
-
   // get the wifi signal strenth to send to the MQTT server
   int wifiStrength = WiFi.RSSI();
 
@@ -144,8 +135,7 @@ void setup(){
 
   //connect to MQTT server
   client.connect(deviceName, username, password);
-  
-  
+    
     int temp = 0;
   while(!client.connected()) {
       if (temp<5){
@@ -167,8 +157,6 @@ void setup(){
               }
                client.disconnect(); // disconnect from the MQTT server before shuttng down
 
-                Serial.println("Failed to connect to MQTT server");
-
                 //ste the correct deep sleep mode
                 esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
                 
@@ -177,13 +165,8 @@ void setup(){
                 
                 esp_deep_sleep_start();
 
-
           }
   }
-
-  if (debug) {Serial.println("Connected to MQTT server");  }
-
-  //delay(500); // give the MQTT client code time to settle
 
   //call the function that will react to button pushes
   print_GPIO_wake_up();
@@ -222,12 +205,9 @@ void setup(){
 
   client.disconnect(); // disconnect from the MQTT server before shuttng down
 
-  if (debug) {Serial.println("Disconnected from MQTT server");}
-
-  //ste the correct deep sleep mode
+  //set the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK,ESP_EXT1_WAKEUP_ANY_HIGH);
   
-  if (debug) {Serial.println("Going to sleep now");}
   //Go to sleep now
   delay(1500);
   
@@ -287,8 +267,6 @@ void sendHTTPrequest() {
 Function to react to which GPIO that triggered the wakeup. OR expressed differently, what button was pushed
 */
 void print_GPIO_wake_up(){
-  //delay(500);
-    if (debug) {Serial.println("Start of Select Case");}
 
     uint64_t GPIO_reason = esp_sleep_get_ext1_wakeup_status(); // find out what button was pushed
     int reason = (log(GPIO_reason))/log(2); // convert that data to a GPIO number
@@ -313,15 +291,12 @@ void print_GPIO_wake_up(){
           break;      
       case button3:
           // Send MQTT messaage for opening and closing the Shed garage door
-          if (debug) {
-                Serial.println("Button 3 pushed");
-                Serial.println("First layer of sending to MQTT server");
-          }
+
           if (!client.publish(button3Topic, button3Message)) {
             delay(100);
-            if (debug) {Serial.println("Layer two of sending to MQTT server");}
+
             if (!client.publish(button3Topic, button3Message)){
-              if (debug) {Serial.println("Third Layer of sending to MQTT server");}
+
               delay(100);
               client.publish(button3Topic, button3Message);
               
@@ -330,15 +305,12 @@ void print_GPIO_wake_up(){
           break;
       case button4:
           // Do nothing becuase this button has not yet be given a use
-          if (debug) {
-                Serial.println("Button 4 pushed");
-                Serial.println("First layer of sending to MQTT server");
-          }
+
           if (!client.publish(button4Topic, button4Message)) {
-            if (debug) {Serial.println("Second Layer of sending to MQTT server");}
+
             delay(100);
             if (!client.publish(button4Topic, button4Message)) {
-              if (debug) {Serial.println("Third Layer of sending to MQTT server");}
+
               delay(100);
               client.publish(button4Topic, button4Message);
 
@@ -352,5 +324,5 @@ void print_GPIO_wake_up(){
 
     }
 
-    if (debug) {Serial.println("End of select case function");}
+
 }
