@@ -3,7 +3,7 @@
 /*
 MQTT remote control multi button version
 
-Each button sends a different MQTT message
+Each button sends a different MQTT message or an HTTP request
 The ESP32 sits in deep sleep until the button is pressed.
 =====================================
 Created Feb 14 2022
@@ -14,7 +14,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#include <PubSubClient.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <MQTT.h>
+#include <MQTT.h> // just switched from PubSub to MQTT to see if it fixes the occasional bad packet send
 #include <MQTTClient.h>
 
 #define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
