@@ -54,7 +54,7 @@ TaskHandle_t LEDBlink; // create the handle to put the LEDblink function on Core
 bool batteryStatus = false; // True if the battery is below 3.4 volts
 bool connectStatus = false; // used to check if connected to the WIFI
 bool MQTTConnected = 0;     // used to determine if the connection to the MQTT server is active or not
-long Interval = 400;        // how many milliseconds to wait before toggling the LED if connected to the MQTT server
+long Interval = 200;        // how many milliseconds to wait before toggling the LED if connected to the MQTT server
 long lastTime;              // used to track when to blink the connected LED to indicate the MQTT connection is active
 
 char deviceName[] = "Remote1";
@@ -132,9 +132,7 @@ void setup()
     // turn off LED
     digitalWrite(failedLED, LOW); // turn off the failedLED
 
-    esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK, ESP_EXT1_WAKEUP_ANY_HIGH); // set the correct deep sleep mode
-
-    esp_deep_sleep_start(); // go to deep sleep
+    gotosleep();
   }
 
   // turn on connected LED
@@ -163,6 +161,7 @@ void setup()
   client.begin(server, wifiClient);
   client.connect(deviceName, username, password);
 
+  // check if the connection to the MQTT server worked and if so start flashing the connected LED via the second core of the ESP32
   int temp = 0;
   while (!client.connected())
   {
@@ -176,15 +175,15 @@ void setup()
       delay(100);
       temp++;
     }
-    else
+    else // if the connecto the MQTT server will not work then blink the FAILED led and then goto sleep
     {
 
       int temp2 = 0; // create a temp variable to track the blinking loop
       while (temp2 < 5)
       {                                   // while loop start
-        digitalWrite(connectedLED, HIGH); // turn the LED on
+        digitalWrite(failedLED, HIGH);    // turn the LED on
         delay(500);                       // wait a short period
-        digitalWrite(connectedLED, LOW);  // turn the LED off
+        digitalWrite(failedLED, LOW);     // turn the LED off
         delay(100);                       // wait again
         temp2++;                          // increment the temp variable
       }
