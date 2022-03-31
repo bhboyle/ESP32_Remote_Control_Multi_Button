@@ -1,9 +1,7 @@
 
-
 /*
 MQTT remote control multi button version
-
-Each button sends a different MQTT message or an HTTP request
+Each button sends a different MQTT message
 The ESP32 sits in deep sleep until the button is pressed.
 =====================================
 Created Feb 14 2022
@@ -14,8 +12,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#include <PubSubClient.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <MQTT.h> // just switched from PubSub to MQTT to see if it fixes the occasional bad packet send
-#include <MQTTClient.h>
+#include <MQTT.h>
 
 #define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
 #define connectedLED 13      // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
@@ -49,27 +46,22 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#define batteryMessage "Remote1/Battery/Voltage"
 //#define wifiSignal "Remote1/Wifi/strength"
 
-TaskHandle_t LEDBlink; // create the handle to put the LEDblink function on Core 0
-
 bool batteryStatus = false; // True if the battery is below 3.4 volts
-bool connectStatus = false; // used to check if connected to the WIFI
-bool MQTTConnected = 0;     // used to determine if the connection to the MQTT server is active or not
-long Interval = 200;        // how many milliseconds to wait before toggling the LED if connected to the MQTT server
-long lastTime;              // used to track when to blink the connected LED to indicate the MQTT connection is active
+bool connectStatus = false;
 
-char deviceName[] = "Remote1";
+const char deviceName[] = "Remote1";
 char batteryMessage[] = "/Battery/Voltage";
 char wifiSignal[] = "/Wifi/strength";
 
 char ssid[] = "gallifrey"; // WIFI network SSID name
 char pass[] = "rockstar";  // WIFI network password
 
-char username[] = "remote1";         // what username is used by the MQTT server
-char password[] = "Hanafranastan1!"; // what password is used by the MQTT server
+const char username[] = "remote1";         // what username is used by the MQTT server
+const char password[] = "Hanafranastan1!"; // what password is used by the MQTT server
 
 int port = 1883; // TCPIP port used by the MQTT server
 
-IPAddress server(172, 17, 17, 10); // IP address of the MQ TT server
+IPAddress server(172, 17, 17, 10); // IP address of the MQTT server
 
 // The server url for the HTTP request
 String serverName = "http://192.168.1.106:1880/update-sensor";
@@ -81,20 +73,11 @@ IPAddress subnet(255, 255, 255, 0);
 
 // instaniaite the wifi object and the MQTT client
 WiFiClient wifiClient;
-MQTTClient client(wifiClient);
+// PubSubClient client(wifiClient);
+MQTTClient client;
 
 void setup()
 {
-
-  // create a task that will be executed in the LEDBlinkcode() function, with priority 1 and executed on core 0
-  xTaskCreatePinnedToCore(
-      LEDBlinkcode, /* Task function. */
-      "LEDBlink",   /* name of task. */
-      10000,        /* Stack size of task */
-      NULL,         /* parameter of the task */
-      1,            /* priority of the task */
-      &LEDBlink,    /* Task handle to keep track of created task */
-      0);           /* pin task to core 0 */
 
   pinMode(failedLED, OUTPUT);       // set the failedLED pin to output
   pinMode(connectedLED, OUTPUT);    // set the connectedLED pin to output
@@ -156,12 +139,12 @@ void setup()
 
   // set the server deatils for the MQTT object
   // client.setServer(server, 1883);
+  client.begin("172.17.17.10", wifiClient); // put the IP-Adress of your broker here
 
   // connect to MQTT server
-  client.begin(server, wifiClient);
+  // client.connect(deviceName, username, password);
   client.connect(deviceName, username, password);
 
-  // check if the connection to the MQTT server worked and if so start flashing the connected LED via the second core of the ESP32
   int temp = 0;
   while (!client.connected())
   {
@@ -169,31 +152,28 @@ void setup()
     {
       if (client.connect(deviceName, username, password))
       {
-        MQTTConnected = 1;
         break;
       }
       delay(100);
       temp++;
     }
-    else // if the connecto the MQTT server will not work then blink the FAILED led and then goto sleep
+    else
     {
 
       int temp2 = 0; // create a temp variable to track the blinking loop
       while (temp2 < 5)
       {                                   // while loop start
-        digitalWrite(failedLED, HIGH);    // turn the LED on
+        digitalWrite(connectedLED, HIGH); // turn the LED on
         delay(500);                       // wait a short period
-        digitalWrite(failedLED, LOW);     // turn the LED off
+        digitalWrite(connectedLED, LOW);  // turn the LED off
         delay(100);                       // wait again
         temp2++;                          // increment the temp variable
       }
-
       gotosleep();
     }
   }
 
   // call the function that will react to button pushes
-  delay(500);
   print_GPIO_wake_up();
 
   char result[8];               // Buffer to convert battery voltage float in to a Char array
@@ -374,34 +354,28 @@ void print_GPIO_wake_up()
   }
 }
 
-// This function is bound to core 0 so that the connection LED can be blinked to indictate an active connection to the MQTT server.
-void LEDBlinkcode(void *pvParameters)
-{
-  long currentTime = millis();           // get the current time
-  if (currentTime - lastTime > Interval) // check to see if more the "Interval" has elapsed since we last checked
-  {
-    lastTime = currentTime; // if yes then take note of the current time
-
-    if (MQTTConnected) // if we aer connected to the MQTT server then...
-    {
-      digitalWrite(connectedLED, !digitalRead(connectedLED)); // toggle the Connected LED
-    }
-  }
-}
-
+// disconnect from the MQTT server and put the ESP32 in deep sleep
 void gotosleep()
 {
-  client.disconnect(); // disconnect from the MQTT server before shuttng down
+  int temp = 0;
+  while (1)
+  {
+    if (!client.disconnect())
+    {
+      break;
+    } // disconnect from the MQTT server before shuttng down
 
-  // turn off LEDs
-  digitalWrite(connectedLED, LOW);
-  digitalWrite(failedLED, LOW);
+    delay(100);
+    if (temp > 5)
+    {
+      break;
+    }
+  }
+
+  delay(1500);
 
   // set the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK, ESP_EXT1_WAKEUP_ANY_HIGH);
-
   // Go to sleep now
-  delay(100);
-
   esp_deep_sleep_start();
 }
