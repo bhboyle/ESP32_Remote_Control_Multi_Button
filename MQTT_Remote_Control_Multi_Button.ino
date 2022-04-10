@@ -11,23 +11,26 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 
 //#include <PubSubClient.h>
 #include <WiFi.h>
-#include <HTTPClient.h>
+//#include <HTTPClient.h>
 #include <MQTT.h>
+#include <Adafruit_NeoPixel.h>
 
-#define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
-#define connectedLED 13      // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
+//#define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
+#define LED 13               // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
 #define batteryVOLTAGE 34    // The analog pin of the voltage divider that reads the battery voltage
 #define thresholdVoltage 3.4 // The voltage that starts the blinking to idicate a low voltage in the battery
+#define MOSFETpin 12         // This is the power pin of the Addressable LED. Used to power down the LED while in sleep mode
+#define NUMPIXELS 1          // Popular NeoPixel ring size
 
 // This next one needs to be calibrated before use
 #define BATTERYMULTIPLIER 0.0017808680994522 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
 // This next definition is a bitmask use the set the interupt pins for waking up the esp32 from deep sleep
 #define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
+//#define BUTTON_PIN_BITMASK 0x308010000 // GPIOs 16, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case
-#define button1 15
-//#define button1Topic "outTopic"
+#define button1 16
 #define button1Topic "door/control"
 #define button1Message "left"
 
@@ -47,11 +50,11 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#define wifiSignal "Remote1/Wifi/strength"
 
 bool batteryStatus = false; // True if the battery is below 3.4 volts
-bool connectStatus = false;
+bool connectStatus = false; // True if the WIF connects succesfully
 
-const char deviceName[] = "Remote1";
-char batteryMessage[] = "/Battery/Voltage";
-char wifiSignal[] = "/Wifi/strength";
+const char deviceName[] = "Remote1";        // This is the host name of this device
+char batteryMessage[] = "/Battery/Voltage"; // This is the MQTT topic of use to send the battery voltage
+char wifiSignal[] = "/Wifi/strength";       // This is the MQTT topic use to send the WIFI signal strength.
 
 char ssid[] = "gallifrey"; // WIFI network SSID name
 char pass[] = "rockstar";  // WIFI network password
@@ -64,10 +67,10 @@ int port = 1883; // TCPIP port used by the MQTT server
 IPAddress server(172, 17, 17, 10); // IP address of the MQTT server
 
 // The server url for the HTTP request
-String serverName = "http://192.168.1.106:1880/update-sensor";
+// String serverName = "http://192.168.1.106:1880/update-sensor";
 
 // Set your Static IP address, gateway and submet mask
-IPAddress local_IP(172, 17, 17, 250);
+IPAddress local_IP(172, 17, 17, 251);
 IPAddress gateway(172, 17, 17, 1);
 IPAddress subnet(255, 255, 255, 0);
 
@@ -76,20 +79,30 @@ WiFiClient wifiClient;
 // PubSubClient client(wifiClient);
 MQTTClient client;
 
+Adafruit_NeoPixel pixels(NUMPIXELS, LED, NEO_GRB + NEO_KHZ800);
+
 void setup()
 {
+  Serial.begin(9600);
+  Serial.println("Starting....");
 
-  pinMode(failedLED, OUTPUT);       // set the failedLED pin to output
-  pinMode(connectedLED, OUTPUT);    // set the connectedLED pin to output
+  // pinMode(failedLED, OUTPUT);       // set the failedLED pin to output
+  // pinMode(connectedLED, OUTPUT);    // set the connectedLED pin to output
   pinMode(button1, INPUT_PULLDOWN); // set the GPIO inputs correctly and turn on the internal pull down resistor
   pinMode(button2, INPUT_PULLDOWN);
   pinMode(button3, INPUT_PULLDOWN);
   pinMode(button4, INPUT_PULLDOWN);
+  pinMode(MOSFETpin, OUTPUT); //  set the output used by the Addressable LED to output
+
+  delay(50); // wait a little bit of time to give the neopixels time to settle.
+
+  pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  pixels.clear(); // Set all pixel colors to 'off'
 
   // Configures static IP address
   if (!WiFi.config(local_IP, gateway, subnet))
   {
-    // Serial.println("STA Failed to configure");
+    Serial.println("STA Failed to configure");
   }
 
   WiFi.mode(WIFI_STA);    // set the mode the WIFI is using
@@ -106,20 +119,28 @@ void setup()
     } // it is had been trying to connect to the WIFI for 60 * 50 milliseconds the stop trying
   }
 
+  // This second WIFI status is used to do indicate a failed connection and then ut the ESP32 in deep sleep
   if (WiFi.status() != WL_CONNECTED)
   { // if it can not connet to the wifi
     // light red LED
-    digitalWrite(failedLED, HIGH); // turn on the failedLED
+    SetLEDColor(255, 0, 0);
+    // digitalWrite(failedLED, HIGH); // turn on the failedLED
+
+    Serial.println(" WIFI connection FAILED");
 
     delay(5000); // wait five seconds
     // turn off LED
-    digitalWrite(failedLED, LOW); // turn off the failedLED
+    SetLEDColor(0, 0, 0);
+    // digitalWrite(failedLED, LOW); // turn off the failedLED
 
     gotosleep();
   }
 
   // turn on connected LED
-  digitalWrite(connectedLED, HIGH);
+  SetLEDColor(0, 255, 0);
+  // digitalWrite(connectedLED, HIGH);
+
+  Serial.println("WIFI connection active");
 
   // get the wifi signal strenth to send to the MQTT server
   int wifiStrength = WiFi.RSSI();
@@ -134,38 +155,41 @@ void setup()
   }
 
   // convert the wifi signal strength to a char array for sending to the MQTT server
-  char cstr[16];                // buffer to hold the conversion of the int to char
-  itoa(wifiStrength, cstr, 10); // do the actual conversion
+  char wifistr[16];                // buffer to hold the conversion of the int to char
+  itoa(wifiStrength, wifistr, 10); // do the actual conversion
 
-  // set the server deatils for the MQTT object
+  // set the server details for the MQTT object
   // client.setServer(server, 1883);
-  client.begin("172.17.17.10", wifiClient); // put the IP-Adress of your broker here
+  client.begin(server, wifiClient); // put the IP-Adress of your broker here
 
   // connect to MQTT server
   // client.connect(deviceName, username, password);
   client.connect(deviceName, username, password);
 
+  // wait for the MQTT to connect
   int temp = 0;
-  while (!client.connected())
+  while (!client.connected()) // this is the how we check to see if we are connected
   {
-    if (temp < 5)
+    if (temp < 5) // try five times
     {
-      if (client.connect(deviceName, username, password))
+      if (client.connect(deviceName, username, password)) // if not then send the connec t command again.
       {
         break;
       }
       delay(100);
       temp++;
     }
-    else
+    else // if we have tried five time and not connected then blink the LED red five times and go to sleep
     {
 
       int temp2 = 0; // create a temp variable to track the blinking loop
-      while (temp2 < 5)
+      while (temp2 < 5)                   // here we blink the LED Green slowly to indicate a failed MQTT connection
       {                                   // while loop start
-        digitalWrite(connectedLED, HIGH); // turn the LED on
+        SetLEDColor(0, 255, 0);
+        // digitalWrite(connectedLED, HIGH); // turn the LED on
         delay(500);                       // wait a short period
-        digitalWrite(connectedLED, LOW);  // turn the LED off
+        SetLEDColor(0, 0, 0);
+        // digitalWrite(connectedLED, LOW);  // turn the LED off
         delay(100);                       // wait again
         temp2++;                          // increment the temp variable
       }
@@ -174,7 +198,7 @@ void setup()
   }
 
   // call the function that will react to button pushes
-  print_GPIO_wake_up();
+  print_GPIO_wake_up(); // this is the hart of this program
 
   char result[8];               // Buffer to convert battery voltage float in to a Char array
   dtostrf(volts, 6, 2, result); // do the actual conversion from Float to Char
@@ -187,23 +211,25 @@ void setup()
   // publish battery voltage to MQTT server
   client.publish(buf, result);
 
-  // reset and do the same thing for the wifiSignal topic
+  // reset and do the same thing for the wifi Signal topic
   strcpy(buf, deviceName);                      // reset and copy deviceName into the buffer
   strcpy(buf + strlen(deviceName), wifiSignal); // add wifiSignal to the buffer
 
   // send the wifi signal strength to the MQTT server
-  client.publish(buf, cstr);
+  client.publish(buf, wifistr);
 
   // if the batteryStatus flag is set, flash the failed LED five times to indicate a low battery
   if (batteryStatus)
   {
 
-    int temp = 0; // create a temp variable to track the blinking loop
-    while (temp < 5)
-    {                                // while loop start
-      digitalWrite(failedLED, HIGH); // turn the LED on
+    int temp = 0;    // Create a temp variable to track the blinking loop
+    while (temp < 5) // Here we blink the LED Red quickly to indicate a low battery situation
+    {                // While loop start
+      SetLEDColor(255, 0, 0);
+      // digitalWrite(failedLED, HIGH); // turn the LED on
       delay(500);                    // wait a short period
-      digitalWrite(failedLED, LOW);  // turn the LED off
+      SetLEDColor(0, 0, 0);
+      // digitalWrite(failedLED, LOW);  // turn the LED off
       delay(100);                    // wait again
       temp++;                        // increment the temp variable
     }
@@ -235,6 +261,7 @@ float getBatteryVoltage()
 /*
     To be called if a button is to be used to call a web page.
 */
+/*
 void sendHTTPrequest()
 {
 
@@ -263,6 +290,7 @@ void sendHTTPrequest()
   // Free resources
   http.end();
 }
+*/
 
 /*
 Function to react to which GPIO that triggered the wakeup. OR expressed differently, what button was pushed
@@ -273,7 +301,7 @@ void print_GPIO_wake_up()
   uint64_t GPIO_reason = esp_sleep_get_ext1_wakeup_status(); // find out what button was pushed
   int reason = (log(GPIO_reason)) / log(2);                  // convert that data to a GPIO number
 
-  int temp = 0;
+  int temp = 0; // used for tracking how many times the While loops happen
 
   switch (reason) // Take the result and react depending on what button was pressed.
   {
@@ -372,10 +400,25 @@ void gotosleep()
     }
   }
 
+  Serial.println("Going to Sleep now");
   delay(1500);
+
+  digitalWrite(MOSFETpin, LOW); // Turn off the Addressable LED
+
+  wifiClient.stop(); // turn off the wifi before sleeping
 
   // set the correct deep sleep mode
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK, ESP_EXT1_WAKEUP_ANY_HIGH);
   // Go to sleep now
   esp_deep_sleep_start();
+}
+
+// sets the adressable LED to the color and shows the result
+void SetLEDColor(int red, int green, int blue)
+{
+
+  // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+  pixels.setPixelColor(0, pixels.Color(red, green, blue));
+
+  pixels.show(); // Send the updated pixel colors to the hardware.
 }
