@@ -26,23 +26,24 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define BATTERYMULTIPLIER 0.0017808680994522 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
 // This next definition is a bitmask use the set the interupt pins for waking up the esp32 from deep sleep
-#define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
+//#define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 //#define BUTTON_PIN_BITMASK 0x308010000 // GPIOs 16, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
+#define BUTTON_PIN_BITMASK 0xB08000000
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case
-#define button1 16
+#define button1 32
 #define button1Topic "door/control"
 #define button1Message "left"
 
-#define button2 27
-#define button2Topic "outTopic"
+#define button2 33
+#define button2Topic "door/control"
 #define button2Message "right"
 
-#define button3 32
+#define button3 27
 #define button3Topic "time/sunset"
 #define button3Message "on"
 
-#define button4 33
+#define button4 35
 #define button4Topic "time/sunset"
 #define button4Message "off"
 
@@ -306,74 +307,74 @@ void print_GPIO_wake_up()
   switch (reason) // Take the result and react depending on what button was pressed.
   {
   case button1:
-    // Send MQTT messaage for opening and closing the Left door
-    while (1)
+    // Send MQTT messaage for Button 1
+    while (1) // start a loop to make the message send happen up to five times
     {
-      temp++;
-      if (client.publish(button1Topic, button1Message))
+      temp++;                                           // count up to track the loops
+      if (client.publish(button1Topic, button1Message)) // send the MQTT message and check if it happened
       {
-        break;
+        break; // if the message send went through then exit the loop
       }
 
-      delay(100);
-      if (temp > 5)
+      delay(100);   // give time between message sends
+      if (temp > 5) // if the message didne get sent after five trys then go to sleep
       {
         gotosleep();
       }
-    }
+    } // end of loop
     break;
   case button2:
-    // Send MQTT messaage for opening and closing the Right garage door
-    while (1)
+    // Send MQTT messaage for Button 2
+    while (1) // start a loop to make the message send happen up to five times
     {
-      temp++;
-      if (client.publish(button2Topic, button2Message))
+      temp++;                                           // count up to track the loops
+      if (client.publish(button2Topic, button2Message)) // send the MQTT message and check if it happened
       {
-        break;
+        break; // if the message send went through then exit the loop
       }
 
-      delay(100);
-      if (temp > 5)
+      delay(100);   // give time between message sends
+      if (temp > 5) // if the message didnt get sent after five trys then go to sleep
       {
         gotosleep();
       }
-    }
+    } // end of loop
     break;
   case button3:
-    // Send MQTT messaage for opening and closing the Shed garage door
+    // Send MQTT messaage for Button 3
 
-    while (1)
+    while (1) // start a loop to make the message send happen up to five times
     {
-      temp++;
-      if (client.publish(button3Topic, button3Message))
+      temp++;                                           // count up to track the loops
+      if (client.publish(button3Topic, button3Message)) // send the MQTT message and check if it happened
       {
-        break;
+        break; // if the message send went through then exit the loop
       }
 
-      delay(100);
-      if (temp > 5)
+      delay(100);   // give time between message sends
+      if (temp > 5) // if the message didnt get sent after five trys then go to sleep
       {
         gotosleep();
       }
-    }
+    } // end of loop
     break;
   case button4:
-    // Do nothing becuase this button has not yet be given a use
+    // Send MQTT messaage for Button 4
 
-    while (1)
+    while (1) // start a loop to make the message send happen up to five times
     {
-      temp++;
-      if (client.publish(button4Topic, button4Message))
+      temp++;                                           // count up to track the loops
+      if (client.publish(button4Topic, button4Message)) // send the MQTT message and check if it happened
       {
-        break;
+        break; // if the message send went through then exit the loop
       }
 
-      delay(100);
-      if (temp > 5)
+      delay(100);   // give time between message sends
+      if (temp > 5) // if the message didnt get sent after five trys then go to sleep
       {
         gotosleep();
       }
-    }
+    } // end of loop
     // sendHTTPrequest(); //call the HTTP request function
     break;
   default:
