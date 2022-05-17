@@ -11,7 +11,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 
 //#include <PubSubClient.h>
 #include <WiFi.h>
-//#include <HTTPClient.h>
+#include <HTTPClient.h>
 #include <MQTT.h>
 #include <Adafruit_NeoPixel.h>
 
@@ -52,10 +52,12 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 
 bool batteryStatus = false; // True if the battery is below 3.4 volts
 bool connectStatus = false; // True if the WIF connects succesfully
+char BatteryVoltageChar[8]; // Buffer to convert battery voltage float in to a Char array
 
 const char deviceName[] = "Remote1";        // This is the host name of this device
 char batteryMessage[] = "/Battery/Voltage"; // This is the MQTT topic of use to send the battery voltage
 char wifiSignal[] = "/Wifi/strength";       // This is the MQTT topic use to send the WIFI signal strength.
+char wifistr[16];                           // buffer to hold the conversion of the int to char
 
 char ssid[] = "gallifrey"; // WIFI network SSID name
 char pass[] = "rockstar";  // WIFI network password
@@ -68,7 +70,7 @@ int port = 1883; // TCPIP port used by the MQTT server
 IPAddress server(172, 17, 17, 10); // IP address of the MQTT server
 
 // The server url for the HTTP request
-// String serverName = "http://192.168.1.106:1880/update-sensor";
+String serverName = "http://172.17.17.12/";
 
 // Set your Static IP address, gateway and submet mask
 IPAddress local_IP(172, 17, 17, 251);
@@ -149,16 +151,17 @@ void setup()
   // read the battery voltage via an analog read and convert it to a basic float
   float volts = getBatteryVoltage();
 
-  // if the battery voltage is below 3.4 volts the set the batteryStatus flag
+  // if the battery voltage is below 3.4 volts then set the batteryStatus flag
   if (volts < thresholdVoltage)
   {
     batteryStatus = true;
   }
 
   // convert the wifi signal strength to a char array for sending to the MQTT server
-  char wifistr[16];                // buffer to hold the conversion of the int to char
+
   itoa(wifiStrength, wifistr, 10); // do the actual conversion
 
+  // ******* begin the connection to thw MQTT server **********
   // set the server details for the MQTT object
   // client.setServer(server, 1883);
   client.begin(server, wifiClient); // put the IP-Adress of your broker here
@@ -173,7 +176,7 @@ void setup()
   {
     if (temp < 5) // try five times
     {
-      if (client.connect(deviceName, username, password)) // if not then send the connec t command again.
+      if (client.connect(deviceName, username, password)) // if not then send the connect command again.
       {
         break;
       }
@@ -196,13 +199,12 @@ void setup()
       }
       gotosleep();
     }
-  }
+  } // ******* end of the connection to thw MQTT server **********
 
   // call the function that will react to button pushes
   print_GPIO_wake_up(); // this is the hart of this program
 
-  char result[8];               // Buffer to convert battery voltage float in to a Char array
-  dtostrf(volts, 6, 2, result); // do the actual conversion from Float to Char
+  dtostrf(volts, 6, 2, BatteryVoltageChar); // do the actual conversion from Float to Char
 
   // the following code adds deviceName and batteryMessage together into a buffer to use as the MQTT topic
   char buf[30];                                     // create the buffer
@@ -210,7 +212,7 @@ void setup()
   strcpy(buf + strlen(deviceName), batteryMessage); // add the battery message to the deviceName
 
   // publish battery voltage to MQTT server
-  client.publish(buf, result);
+  client.publish(buf, BatteryVoltageChar);
 
   // reset and do the same thing for the wifi Signal topic
   strcpy(buf, deviceName);                      // reset and copy deviceName into the buffer
@@ -262,13 +264,12 @@ float getBatteryVoltage()
 /*
     To be called if a button is to be used to call a web page.
 */
-/*
-void sendHTTPrequest()
+void sendHTTPrequest(String command)
 {
 
   HTTPClient http; // create the HTTP client object
 
-  String serverPath = serverName + ""; // add more to the URL here if needed
+  String serverPath = serverName + command; // add more to the URL here if needed
 
   // Your Domain name with URL path or IP address with path
   http.begin(serverPath.c_str());
@@ -291,7 +292,6 @@ void sendHTTPrequest()
   // Free resources
   http.end();
 }
-*/
 
 /*
 Function to react to which GPIO that triggered the wakeup. OR expressed differently, what button was pushed
@@ -307,6 +307,7 @@ void print_GPIO_wake_up()
   switch (reason) // Take the result and react depending on what button was pressed.
   {
   case button1:
+    /*
     // Send MQTT messaage for Button 1
     while (1) // start a loop to make the message send happen up to five times
     {
@@ -322,8 +323,11 @@ void print_GPIO_wake_up()
         gotosleep();
       }
     } // end of loop
+    */
+    sendHTTPrequest("garage.php?remote=" + String(deviceName) + "&wifi=" + String(wifistr) + "&battery= " + String(BatteryVoltageChar)); // call the HTTP request function
     break;
   case button2:
+    /*
     // Send MQTT messaage for Button 2
     while (1) // start a loop to make the message send happen up to five times
     {
@@ -339,43 +343,49 @@ void print_GPIO_wake_up()
         gotosleep();
       }
     } // end of loop
+    */
+    sendHTTPrequest("shop.php"); // call the HTTP request function
     break;
   case button3:
     // Send MQTT messaage for Button 3
+    /*
+        while (1) // start a loop to make the message send happen up to five times
+        {
+          temp++;                                           // count up to track the loops
+          if (client.publish(button3Topic, button3Message)) // send the MQTT message and check if it happened
+          {
+            break; // if the message send went through then exit the loop
+          }
 
-    while (1) // start a loop to make the message send happen up to five times
-    {
-      temp++;                                           // count up to track the loops
-      if (client.publish(button3Topic, button3Message)) // send the MQTT message and check if it happened
-      {
-        break; // if the message send went through then exit the loop
-      }
-
-      delay(100);   // give time between message sends
-      if (temp > 5) // if the message didnt get sent after five trys then go to sleep
-      {
-        gotosleep();
-      }
-    } // end of loop
+          delay(100);   // give time between message sends
+          if (temp > 5) // if the message didnt get sent after five trys then go to sleep
+          {
+            gotosleep();
+          }
+        } // end of loop
+        */
+    sendHTTPrequest("on.php"); // call the HTTP request function
     break;
   case button4:
     // Send MQTT messaage for Button 4
-
-    while (1) // start a loop to make the message send happen up to five times
-    {
-      temp++;                                           // count up to track the loops
-      if (client.publish(button4Topic, button4Message)) // send the MQTT message and check if it happened
+    /*
+      while (1) // start a loop to make the message send happen up to five times
       {
-        break; // if the message send went through then exit the loop
-      }
+        temp++;                                           // count up to track the loops
+        if (client.publish(button4Topic, button4Message)) // send the MQTT message and check if it happened
+        {
+          break; // if the message send went through then exit the loop
+        }
 
-      delay(100);   // give time between message sends
-      if (temp > 5) // if the message didnt get sent after five trys then go to sleep
-      {
-        gotosleep();
-      }
-    } // end of loop
-    // sendHTTPrequest(); //call the HTTP request function
+        delay(100);   // give time between message sends
+        if (temp > 5) // if the message didnt get sent after five trys then go to sleep
+        {
+          gotosleep();
+        }
+      } // end of loop
+      */
+    sendHTTPrequest("off.php"); // call the HTTP request function
+    // sendHTTPrequest("on.php"); //call the HTTP request function
     break;
   default:
     // Do nothing if anything else causes a boot of the ESP32
