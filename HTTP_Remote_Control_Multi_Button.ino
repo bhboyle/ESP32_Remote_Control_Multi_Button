@@ -12,7 +12,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#include <PubSubClient.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <MQTT.h>
+//#include <MQTT.h>
 #include <Adafruit_NeoPixel.h>
 
 //#define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
@@ -80,7 +80,7 @@ IPAddress subnet(255, 255, 255, 0);
 // instaniaite the wifi object and the MQTT client
 WiFiClient wifiClient;
 // PubSubClient client(wifiClient);
-MQTTClient client;
+// MQTTClient client;
 
 Adafruit_NeoPixel pixels(NUMPIXELS, LED, NEO_GRB + NEO_KHZ800);
 
@@ -287,20 +287,6 @@ void print_GPIO_wake_up()
 // disconnect from the MQTT server and put the ESP32 in deep sleep
 void gotosleep()
 {
-    int temp = 0;
-    while (1)
-    {
-        if (!client.disconnect())
-        {
-            break;
-        } // disconnect from the MQTT server before shuttng down
-
-        delay(100);
-        if (temp > 5)
-        {
-            break;
-        }
-    }
 
     Serial.println("Going to Sleep now");
     delay(1500);
