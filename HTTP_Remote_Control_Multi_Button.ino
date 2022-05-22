@@ -2,6 +2,12 @@
 /*
 MQTT remote control multi button version
 Each button sends a different MQTT message
+
+This code has been change to use HTTP GET commands rather than MQTT messages
+The MQTT connection would fail once in every 10 or so connections. I was
+not able to determine a cose for this behavour and so I wnt with HTTP GETs
+to increase reliabilty.
+
 The ESP32 sits in deep sleep until the button is pressed.
 =====================================
 Created Feb 14 2022
@@ -15,12 +21,15 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#include <MQTT.h>
 #include <Adafruit_NeoPixel.h>
 
-//#define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
+#define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
 #define LED 13               // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
 #define batteryVOLTAGE 34    // The analog pin of the voltage divider that reads the battery voltage
 #define thresholdVoltage 3.4 // The voltage that starts the blinking to idicate a low voltage in the battery
 #define MOSFETpin 12         // This is the power pin of the Addressable LED. Used to power down the LED while in sleep mode
 #define NUMPIXELS 1          // Popular NeoPixel ring size
+
+// Comment out to use singel LED rather than Neopixel
+//#define NEOPIXEL TRUE // to be used to determine what to compile, individual LEDs or a single Neopixel
 
 // This next one needs to be calibrated before use
 #define BATTERYMULTIPLIER 0.0017808680994522 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
@@ -31,6 +40,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define BUTTON_PIN_BITMASK 0xB08000000
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case
+// The pin number definitions here must match the Pin BITMASK above for the device to function correctly
 #define button1 32
 #define button1Topic "door/control"
 #define button1Message "left"
@@ -72,7 +82,7 @@ IPAddress server(172, 17, 17, 10); // IP address of the MQTT server
 // The server url for the HTTP request
 String serverName = "http://172.17.17.12/";
 
-// Set your Static IP address, gateway and submet mask
+// Set your Static IP address, gateway and subnet mask
 IPAddress local_IP(172, 17, 17, 251);
 IPAddress gateway(172, 17, 17, 1);
 IPAddress subnet(255, 255, 255, 0);
@@ -82,7 +92,9 @@ WiFiClient wifiClient;
 // PubSubClient client(wifiClient);
 // MQTTClient client;
 
+#ifdef NEOPIXEL
 Adafruit_NeoPixel pixels(NUMPIXELS, LED, NEO_GRB + NEO_KHZ800);
+#endif
 
 void setup()
 {
@@ -95,12 +107,18 @@ void setup()
     pinMode(button2, INPUT_PULLDOWN);
     pinMode(button3, INPUT_PULLDOWN);
     pinMode(button4, INPUT_PULLDOWN);
+
+#ifdef NEOPIXEL
     pinMode(MOSFETpin, OUTPUT); //  set the output used by the Addressable LED to output
-
-    delay(50); // wait a little bit of time to give the neopixels time to settle.
-
+    delay(50);                  // wait a little bit of time to give the neopixels time to settle.
     pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
     pixels.clear(); // Set all pixel colors to 'off'
+#else
+    pinMode(LED, OUTPUT);
+    digitalWrite(LED, LOW);
+    pinMode(failedLED, OUTPUT);
+    digitalWrite(failedLED, LOW);
+#endif
 
     // Configures static IP address
     if (!WiFi.config(local_IP, gateway, subnet))
@@ -125,31 +143,42 @@ void setup()
     // This second WIFI status is used to do indicate a failed connection and then ut the ESP32 in deep sleep
     if (WiFi.status() != WL_CONNECTED)
     { // if it can not connet to the wifi
-        // light red LED
+      // light a red LED
+
+#ifdef NEOPIXEL
         SetLEDColor(255, 0, 0);
-        // digitalWrite(failedLED, HIGH); // turn on the failedLED
-
-        Serial.println(" WIFI connection FAILED");
-
         delay(5000); // wait five seconds
         // turn off LED
         SetLEDColor(0, 0, 0);
-        // digitalWrite(failedLED, LOW); // turn off the failedLED
 
+#else
+        digitalWrite(failedLED, HIGH); // turn on the failedLED
+        delay(5000);
+        digitalWrite(failedLED, LOW); // turn off the failedLED
+#endif
         gotosleep();
     }
 
     // turn on connected LED
+#ifdef NEOPIXEL
     SetLEDColor(0, 255, 0);
-    // digitalWrite(connectedLED, HIGH);
+#else
+    digitalWrite(LED, HIGH);
+#endif
 
     Serial.println("WIFI connection active");
 
     // get the wifi signal strenth to send to the MQTT server
     int wifiStrength = WiFi.RSSI();
 
+    // convert the wifi signal strength to a char array for sending to the MQTT server
+
+    itoa(wifiStrength, wifistr, 10); // do the actual conversion
+
     // read the battery voltage via an analog read and convert it to a basic float
     float volts = getBatteryVoltage();
+
+    dtostrf(volts, 4, 2, BatteryVoltageChar); // convert from Float to Char
 
     // if the battery voltage is below 3.4 volts then set the batteryStatus flag
     if (volts < thresholdVoltage)
@@ -157,18 +186,12 @@ void setup()
         batteryStatus = true;
     }
 
-    // convert the wifi signal strength to a char array for sending to the MQTT server
-
-    itoa(wifiStrength, wifistr, 10); // do the actual conversion
-
     // call the function that will react to button pushes
     print_GPIO_wake_up(); // this is the hart of this program
 
-    dtostrf(volts, 6, 2, BatteryVoltageChar); // do the actual conversion from Float to Char
-
     sendHTTPrequest("details.php?remote=" + String(deviceName) +
                     "&wifi=" + String(wifistr) +
-                    "&battery= " + String(BatteryVoltageChar)); // call the HTTP request function
+                    "&battery=" + String(BatteryVoltageChar)); // call the HTTP request function
 
     // if the batteryStatus flag is set, flash the failed LED five times to indicate a low battery
     if (batteryStatus)
@@ -177,13 +200,20 @@ void setup()
         int temp = 0;    // Create a temp variable to track the blinking loop
         while (temp < 5) // Here we blink the LED Red quickly to indicate a low battery situation
         {                // While loop start
+
+#ifdef NEOPIXEL
             SetLEDColor(255, 0, 0);
-            // digitalWrite(failedLED, HIGH); // turn the LED on
             delay(500); // wait a short period
             SetLEDColor(0, 0, 0);
-            // digitalWrite(failedLED, LOW);  // turn the LED off
             delay(100); // wait again
             temp++;     // increment the temp variable
+#else
+            digitalWrite(failedLED, HIGH); // turn the LED on
+            delay(500);
+            digitalWrite(failedLED, LOW); // turn the LED off
+            delay(100);
+            temp++;
+#endif
         }
     }
 
@@ -288,7 +318,7 @@ void print_GPIO_wake_up()
 void gotosleep()
 {
 
-    Serial.println("Going to Sleep now");
+    // Serial.println("Going to Sleep now");
     delay(1500);
 
     digitalWrite(MOSFETpin, LOW); // Turn off the Addressable LED
@@ -301,6 +331,7 @@ void gotosleep()
     esp_deep_sleep_start();
 }
 
+#ifdef NEOPIXEL
 // sets the adressable LED to the color and shows the result
 void SetLEDColor(int red, int green, int blue)
 {
@@ -310,3 +341,4 @@ void SetLEDColor(int red, int green, int blue)
 
     pixels.show(); // Send the updated pixel colors to the hardware.
 }
+#endif
