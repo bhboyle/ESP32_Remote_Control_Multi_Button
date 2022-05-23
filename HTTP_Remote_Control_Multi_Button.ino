@@ -21,8 +21,8 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#include <MQTT.h>
 #include <Adafruit_NeoPixel.h>
 
-#define failedLED 12         // Digital pin for LED that will be used to indicate a failed connection to WIFI
-#define LED 13               // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
+#define failedLED 22         // Digital pin for LED that will be used to indicate a failed connection to WIFI
+#define LED 23               // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
 #define batteryVOLTAGE 34    // The analog pin of the voltage divider that reads the battery voltage
 #define thresholdVoltage 3.4 // The voltage that starts the blinking to idicate a low voltage in the battery
 #define MOSFETpin 12         // This is the power pin of the Addressable LED. Used to power down the LED while in sleep mode
@@ -98,11 +98,9 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LED, NEO_GRB + NEO_KHZ800);
 
 void setup()
 {
-    Serial.begin(9600);
-    Serial.println("Starting....");
+    // Serial.begin(9600);
+    // Serial.println("Starting....");
 
-    // pinMode(failedLED, OUTPUT);       // set the failedLED pin to output
-    // pinMode(connectedLED, OUTPUT);    // set the connectedLED pin to output
     pinMode(button1, INPUT_PULLDOWN); // set the GPIO inputs correctly and turn on the internal pull down resistor
     pinMode(button2, INPUT_PULLDOWN);
     pinMode(button3, INPUT_PULLDOWN);
@@ -123,7 +121,7 @@ void setup()
     // Configures static IP address
     if (!WiFi.config(local_IP, gateway, subnet))
     {
-        Serial.println("STA Failed to configure");
+        // Serial.println("STA Failed to configure");
     }
 
     WiFi.mode(WIFI_STA);    // set the mode the WIFI is using
@@ -166,7 +164,7 @@ void setup()
     digitalWrite(LED, HIGH);
 #endif
 
-    Serial.println("WIFI connection active");
+    // Serial.println("WIFI connection active");
 
     // get the wifi signal strenth to send to the MQTT server
     int wifiStrength = WiFi.RSSI();
