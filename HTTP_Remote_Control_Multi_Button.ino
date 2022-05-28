@@ -5,7 +5,7 @@ Each button sends a different MQTT message
 
 This code has been change to use HTTP GET commands rather than MQTT messages
 The MQTT connection would fail once in every 10 or so connections. I was
-not able to determine a cose for this behavour and so I wnt with HTTP GETs
+not able to determine a cause for this behavour and so I wnt with HTTP GETs
 to increase reliabilty.
 
 The ESP32 sits in deep sleep until the button is pressed.
