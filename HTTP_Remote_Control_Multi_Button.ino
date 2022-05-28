@@ -22,7 +22,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #include <Adafruit_NeoPixel.h>
 
 #define failedLED 22         // Digital pin for LED that will be used to indicate a failed connection to WIFI
-#define LED 23               // Digital pin for LED that will be used to indicate a sucessful connection to the MQTT server
+#define LED 23               // Digital pin for LED that will be used to indicate a sucessful connection to the WIFI
 #define batteryVOLTAGE 34    // The analog pin of the voltage divider that reads the battery voltage
 #define thresholdVoltage 3.4 // The voltage that starts the blinking to idicate a low voltage in the battery
 #define MOSFETpin 12         // This is the power pin of the Addressable LED. Used to power down the LED while in sleep mode
@@ -118,13 +118,13 @@ void setup()
     digitalWrite(failedLED, LOW);
 #endif
 
-    // Configures static IP address
+    // Configures static IP address. We use a static IP because it connects to the network faster
     if (!WiFi.config(local_IP, gateway, subnet))
     {
         // Serial.println("STA Failed to configure");
     }
 
-    WiFi.mode(WIFI_STA);    // set the mode the WIFI is using
+    WiFi.mode(WIFI_STA);    // set the WIFI mode to Station
     WiFi.begin(ssid, pass); // start up the WIFI
 
     int count = 0; // create a variable that is used to set a timer for connecting to the WIFI
@@ -148,7 +148,6 @@ void setup()
         delay(5000); // wait five seconds
         // turn off LED
         SetLEDColor(0, 0, 0);
-
 #else
         digitalWrite(failedLED, HIGH); // turn on the failedLED
         delay(5000);
