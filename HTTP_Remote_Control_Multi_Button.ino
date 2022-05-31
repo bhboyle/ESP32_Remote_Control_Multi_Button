@@ -138,7 +138,7 @@ void setup()
         } // it is had been trying to connect to the WIFI for 60 * 50 milliseconds the stop trying
     }
 
-    // This second WIFI status is used to do indicate a failed connection and then ut the ESP32 in deep sleep
+    // This second WIFI status is used to do indicate a failed connection and then put the ESP32 in deep sleep
     if (WiFi.status() != WL_CONNECTED)
     { // if it can not connet to the wifi
       // light a red LED

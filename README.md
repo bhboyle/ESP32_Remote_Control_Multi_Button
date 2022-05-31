@@ -1,6 +1,6 @@
 This is the code for my ESP32 based WIFI remote control with four buttons that send either MQTT messages when pressed or make a HTTP request when a button is pressed.
 
-I have found that sending MQTT messages can fail one out of ten times. By switching to getting an HTTP url it seems to be more reliable. I have created php pages that send the mqtt messages as a workaround and everything seems to work very well.
+I have found that sending MQTT messages can fail one out of ten times. By switching to getting an HTTP url it seems to be more reliable. I have created php pages that send the mqtt messages as a workaround and everything seems to work very well. I should also add that I have found that using HTTP is much faster. I have found that MQTT triggers can take between 3-4 seconds to happen while HTTP triggers can take between 1-2 seconds to happen. In both cases I was using a static IP so networking was not a factor in those tests.
 
 The "HTTP_Remote_Control" file is the current file. I have left in the old one that used MQTT for the meesages for referance. Like I said the MQTT version was not always 100% reliable and so I have switched over to using http get requests. The HTTP get can send data to the PHP file that is sitting on a machine runnng Lighttpd and executes system commands that send the MQTT messages. This is more complex than I would like but for me reliability is more important than complexity.
 
