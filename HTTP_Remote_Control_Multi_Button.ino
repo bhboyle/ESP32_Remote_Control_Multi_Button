@@ -41,6 +41,8 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case
 // The pin number definitions here must match the Pin BITMASK above for the device to function correctly
+// *** Since I have switched to HTTP Get command rather than MQTT the following Defines for Toips and Messages
+// no longer matter as much but are left in just in case I feel the need to switch back.
 #define button1 32
 #define button1Topic "door/control"
 #define button1Message "left"
