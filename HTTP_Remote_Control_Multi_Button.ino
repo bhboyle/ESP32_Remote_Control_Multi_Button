@@ -5,8 +5,8 @@ Each button sends a different MQTT message
 
 This code has been change to use HTTP GET commands rather than MQTT messages
 The MQTT connection would fail once in every 10 or so connections. I was
-not able to determine a cause for this behavour and so I wnt with HTTP GETs
-to increase reliabilty.
+not able to determine a cause for this behaviour and so I went with HTTP GETs
+to increase reliability.
 
 The ESP32 sits in deep sleep until the button is pressed.
 =====================================
@@ -17,31 +17,33 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 
 //#include <PubSubClient.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
+//#include <esp_deep_sleep.h>
 #include <HTTPClient.h>
 //#include <MQTT.h>
 #include <Adafruit_NeoPixel.h>
 
 #define failedLED 22         // Digital pin for LED that will be used to indicate a failed connection to WIFI
-#define LED 23               // Digital pin for LED that will be used to indicate a sucessful connection to the WIFI
+#define LED 23               // Digital pin for LED that will be used to indicate a successful connection to the WIFI
 #define batteryVOLTAGE 34    // The analog pin of the voltage divider that reads the battery voltage
-#define thresholdVoltage 3.4 // The voltage that starts the blinking to idicate a low voltage in the battery
+#define thresholdVoltage 3.4 // The voltage that starts the blinking to indicate a low voltage in the battery
 #define MOSFETpin 12         // This is the power pin of the Addressable LED. Used to power down the LED while in sleep mode
 #define NUMPIXELS 1          // Popular NeoPixel ring size
 
-// Comment out to use singel LED rather than Neopixel
+// Comment out to use single LED rather than Neopixel
 //#define NEOPIXEL TRUE // to be used to determine what to compile, individual LEDs or a single Neopixel
 
 // This next one needs to be calibrated before use
 #define BATTERYMULTIPLIER 0.0017808680994522 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
-// This next definition is a bitmask use the set the interupt pins for waking up the esp32 from deep sleep
+// This next definition is a bitmask use the set the interrupt pins for waking up the esp32 from deep sleep
 //#define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 //#define BUTTON_PIN_BITMASK 0x308010000 // GPIOs 16, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 #define BUTTON_PIN_BITMASK 0xB08000000
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case
 // The pin number definitions here must match the Pin BITMASK above for the device to function correctly
-// *** Since I have switched to HTTP Get command rather than MQTT the following Defines for Toips and Messages
+// *** Since I have switched to HTTP Get command rather than MQTT the following Defines for Topics and Messages
 // no longer matter as much but are left in just in case I feel the need to switch back.
 #define button1 32
 #define button1Topic "door/control"
@@ -63,7 +65,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#define wifiSignal "Remote1/Wifi/strength"
 
 bool batteryStatus = false; // True if the battery is below 3.4 volts
-bool connectStatus = false; // True if the WIF connects succesfully
+bool connectStatus = false; // True if the WIF connects successfully
 char BatteryVoltageChar[8]; // Buffer to convert battery voltage float in to a Char array
 
 const char deviceName[] = "Remote1";        // This is the host name of this device
@@ -89,7 +91,7 @@ IPAddress local_IP(172, 17, 17, 251);
 IPAddress gateway(172, 17, 17, 1);
 IPAddress subnet(255, 255, 255, 0);
 
-// instaniaite the wifi object and the MQTT client
+// instantiate the wifi object and the MQTT client
 WiFiClient wifiClient;
 // PubSubClient client(wifiClient);
 // MQTTClient client;
@@ -100,6 +102,8 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LED, NEO_GRB + NEO_KHZ800);
 
 void setup()
 {
+
+    esp_wifi_start();
     // Serial.begin(9600);
     // Serial.println("Starting....");
 
@@ -127,7 +131,9 @@ void setup()
     }
 
     WiFi.mode(WIFI_STA);    // set the WIFI mode to Station
+    delay(500);
     WiFi.begin(ssid, pass); // start up the WIFI
+    WiFi.reconnect();
 
     int count = 0; // create a variable that is used to set a timer for connecting to the WIFI
     while (WiFi.status() != WL_CONNECTED)
@@ -142,7 +148,7 @@ void setup()
 
     // This second WIFI status is used to do indicate a failed connection and then put the ESP32 in deep sleep
     if (WiFi.status() != WL_CONNECTED)
-    { // if it can not connet to the wifi
+    { // if it can not connect to the wifi
       // light a red LED
 
 #ifdef NEOPIXEL
@@ -167,7 +173,7 @@ void setup()
 
     // Serial.println("WIFI connection active");
 
-    // get the wifi signal strenth to send to the MQTT server
+    // get the wifi signal strength to send to the MQTT server
     int wifiStrength = WiFi.RSSI();
 
     // convert the wifi signal strength to a char array for sending to the MQTT server
@@ -225,7 +231,7 @@ void loop()
 }
 
 /*
-  Functiont that reads the battery voltage by doing an analog read and then converting the
+  Function that reads the battery voltage by doing an analog read and then converting the
   reading into a floating point and returning it.
 */
 float getBatteryVoltage()
@@ -233,7 +239,7 @@ float getBatteryVoltage()
     // read the voltage of the battery
     int batteryValue = analogRead(batteryVOLTAGE);
 
-    // convert it to a true voltage floting point value
+    // convert it to a true voltage floating point value
     float temp = batteryValue * BATTERYMULTIPLIER;
 
     return (temp);
@@ -283,25 +289,25 @@ void print_GPIO_wake_up()
     switch (reason) // Take the result and react depending on what button was pressed.
     {
     case button1:
-        // Send MQTT messaage for Button 1 VIA HTTP
+        // Send MQTT message for Button 1 VIA HTTP
 
         sendHTTPrequest("garage.php"); // call the HTTP request function
         break;
 
     case button2:
-        // Send MQTT messaage for Button 2 VIA HTTP
+        // Send MQTT message for Button 2 VIA HTTP
 
         sendHTTPrequest("shop.php"); // call the HTTP request function
         break;
 
     case button3:
-        // Send MQTT messaage for Button 3 VIA HTTP
+        // Send MQTT message for Button 3 VIA HTTP
 
         sendHTTPrequest("on.php"); // call the HTTP request function
         break;
 
     case button4:
-        // Send MQTT messaage for Button 4 VIA HTTP
+        // Send MQTT message for Button 4 VIA HTTP
 
         sendHTTPrequest("off.php"); // call the HTTP request function
         // sendHTTPrequest("on.php"); //call the HTTP request function
@@ -317,12 +323,16 @@ void print_GPIO_wake_up()
 void gotosleep()
 {
 
+    wifiClient.stop(); // turn off the wifi before sleeping
+    WiFi.disconnect(true, true);
+
+    // esp_wifi_disconnect();  // does nothing.
+    // esp_wifi_stop();
+
     // Serial.println("Going to Sleep now");
-    delay(1500);
+    delay(500);
 
     digitalWrite(MOSFETpin, LOW); // Turn off the Addressable LED
-
-    wifiClient.stop(); // turn off the wifi before sleeping
 
     // set the correct deep sleep mode
     esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK, ESP_EXT1_WAKEUP_ANY_HIGH);
@@ -331,7 +341,7 @@ void gotosleep()
 }
 
 #ifdef NEOPIXEL
-// sets the adressable LED to the color and shows the result
+// sets the addressable LED to the color and shows the result
 void SetLEDColor(int red, int green, int blue)
 {
 
