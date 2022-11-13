@@ -22,10 +22,11 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #include <HTTPClient.h>
 //#include <MQTT.h>
 #include <Adafruit_NeoPixel.h>
+#include <EEPROM.h> // needed to store the boot type and count
 
-#define failedLED 22         // Digital pin for LED that will be used to indicate a failed connection to WIFI
-#define LED 23               // Digital pin for LED that will be used to indicate a successful connection to the WIFI
-#define batteryVOLTAGE 34    // The analog pin of the voltage divider that reads the battery voltage
+#define failedLED 32         // Digital pin for LED that will be used to indicate a failed connection to WIFI
+#define LED 33               // Digital pin for LED that will be used to indicate a successful connection to the WIFI
+#define batteryVOLTAGE 35    // The analog pin of the voltage divider that reads the battery voltage
 #define thresholdVoltage 3.4 // The voltage that starts the blinking to indicate a low voltage in the battery
 #define MOSFETpin 12         // This is the power pin of the Addressable LED. Used to power down the LED while in sleep mode
 #define NUMPIXELS 1          // Popular NeoPixel ring size
@@ -39,17 +40,18 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 // This next definition is a bitmask use the set the interrupt pins for waking up the esp32 from deep sleep
 //#define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
 //#define BUTTON_PIN_BITMASK 0x308010000 // GPIOs 16, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
-#define BUTTON_PIN_BITMASK 0xB08000000
+//#define BUTTON_PIN_BITMASK 0xB08000000
+//#define BUTTON_PIN_BITMASK 0x8C0020
 
 // define the GPIO pins and MQTT messages of the buttons. Used by the select case
 // The pin number definitions here must match the Pin BITMASK above for the device to function correctly
 // *** Since I have switched to HTTP Get command rather than MQTT the following Defines for Topics and Messages
 // no longer matter as much but are left in just in case I feel the need to switch back.
-#define button1 32
+#define button1 4
 #define button1Topic "door/control"
 #define button1Message "left"
 
-#define button2 33
+#define button2 14
 #define button2Topic "door/control"
 #define button2Message "right"
 
@@ -57,12 +59,19 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 #define button3Topic "time/sunset"
 #define button3Message "on"
 
-#define button4 35
+#define button4 15
 #define button4Topic "time/sunset"
 #define button4Message "off"
 
+#define EEPROM_SIZE 12  // this creates the storage area that holds the boot count and type
+#define bootCountAddr 0 // this is the location in EEPROM to start how many times we reboot
+#define bootTypeAddr 5  // this is the EEPROM address where we store the boot type for resets
+
 //#define batteryMessage "Remote1/Battery/Voltage"
 //#define wifiSignal "Remote1/Wifi/strength"
+
+unsigned int bootType = 0;    // used to check if this a full reboot or a warmboot
+unsigned int bootCounter = 0; // used to check if this a full reboot or a warmboot
 
 bool batteryStatus = false; // True if the battery is below 3.4 volts
 bool connectStatus = false; // True if the WIF connects successfully
@@ -103,10 +112,31 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LED, NEO_GRB + NEO_KHZ800);
 void setup()
 {
 
-    esp_wifi_start();
-    // Serial.begin(9600);
-    // Serial.println("Starting....");
+    EEPROM.begin(EEPROM_SIZE); // start the EEPROM
 
+    bootCounter = readIntFromEEPROM(bootCountAddr); // get the current location from EEPROM for the counter variable
+    bootType = readIntFromEEPROM(bootTypeAddr);     // get the current
+    if (bootType)
+    {
+        writeIntIntoEEPROM(bootTypeAddr, 0); // if the boot type was a softboot reset the value in EEPROM for the next boot
+        if (bootCounter > 2)
+        {
+            bootCounter = 0;
+            writeIntIntoEEPROM(bootCountAddr, 0);
+            writeIntIntoEEPROM(bootTypeAddr, 0);
+            gotosleep();
+        }
+    }
+
+    esp_wifi_start();
+    Serial.begin(9600);
+    Serial.println("Starting....");
+    Serial.print(" Boot Type = ");
+    Serial.println(bootType);
+    Serial.print(" Boot Count =");
+    Serial.println(bootCounter);
+    pinMode(13, OUTPUT);
+    digitalWrite(13, LOW);
     pinMode(button1, INPUT_PULLDOWN); // set the GPIO inputs correctly and turn on the internal pull down resistor
     pinMode(button2, INPUT_PULLDOWN);
     pinMode(button3, INPUT_PULLDOWN);
@@ -130,20 +160,22 @@ void setup()
         // Serial.println("STA Failed to configure");
     }
 
-    WiFi.mode(WIFI_STA);    // set the WIFI mode to Station
-    delay(500);
-    WiFi.begin(ssid, pass); // start up the WIFI
     WiFi.reconnect();
+    WiFi.mode(WIFI_STA);    // set the WIFI mode to Station
+    // delay(1000);            // *** added to try and make connecting to WIFI better and more consistant
+    WiFi.begin(ssid, pass); // start up the WIFI
+
+    WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
 
     int count = 0; // create a variable that is used to set a timer for connecting to the WIFI
     while (WiFi.status() != WL_CONNECTED)
     {              // check if it is connected to the AP
-        delay(50); // wait 50 miliseconds
+        delay(100); // wait 100 miliseconds
         count++;   // Increment the timer variable
-        if (count > 60)
+        if (count > 30)
         {
             break;
-        } // it is had been trying to connect to the WIFI for 60 * 50 milliseconds the stop trying
+        } // it is had been trying to connect to the WIFI for 30 * 100 milliseconds then stop trying
     }
 
     // This second WIFI status is used to do indicate a failed connection and then put the ESP32 in deep sleep
@@ -158,10 +190,20 @@ void setup()
         SetLEDColor(0, 0, 0);
 #else
         digitalWrite(failedLED, HIGH); // turn on the failedLED
-        delay(5000);
+        delay(500);
         digitalWrite(failedLED, LOW); // turn off the failedLED
 #endif
-        gotosleep();
+        // gotosleep();
+        bootCounter++;
+        bootType = 1;
+        writeIntIntoEEPROM(bootCountAddr, bootCounter);
+        writeIntIntoEEPROM(bootTypeAddr, bootType);
+        Serial.println("******RESTARTING****");
+        Serial.print(" Boot Type = ");
+        Serial.println(bootType);
+        Serial.print(" Boot Count =");
+        Serial.println(bootCounter);
+        ESP.restart();
     }
 
     // turn on connected LED
@@ -170,7 +212,7 @@ void setup()
 #else
     digitalWrite(LED, HIGH);
 #endif
-
+    delay(500); // *** added to try and make connecting to WIFI better and more consistant
     // Serial.println("WIFI connection active");
 
     // get the wifi signal strength to send to the MQTT server
@@ -324,10 +366,7 @@ void gotosleep()
 {
 
     wifiClient.stop(); // turn off the wifi before sleeping
-    WiFi.disconnect(true, true);
-
-    // esp_wifi_disconnect();  // does nothing.
-    // esp_wifi_stop();
+    WiFi.disconnect(true, false);
 
     // Serial.println("Going to Sleep now");
     delay(500);
@@ -335,7 +374,9 @@ void gotosleep()
     digitalWrite(MOSFETpin, LOW); // Turn off the Addressable LED
 
     // set the correct deep sleep mode
-    esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK, ESP_EXT1_WAKEUP_ANY_HIGH);
+
+    esp_sleep_enable_ext1_wakeup(((1ULL << button1) | (1ULL << button2) | (1ULL << button3) | (1ULL << button4)), ESP_EXT1_WAKEUP_ANY_HIGH);
+    // esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK, ESP_EXT1_WAKEUP_ANY_HIGH);
     // Go to sleep now
     esp_deep_sleep_start();
 }
@@ -351,3 +392,31 @@ void SetLEDColor(int red, int green, int blue)
     pixels.show(); // Send the updated pixel colors to the hardware.
 }
 #endif
+
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+    Serial.println("Connected to AP successfully!");
+}
+
+/*
+    This function reads data from the onboard EEPROM
+*/
+int readIntFromEEPROM(int address)
+{
+
+    int val = EEPROM.readInt(address);
+    return (val);
+}
+
+/*
+    This function saves data into the onboard EEPROM
+*/
+void writeIntIntoEEPROM(int address, int number)
+{
+    int count = number;
+
+    EEPROM.writeInt(address, count);
+    EEPROM.commit();
+
+    delay(50);
+}
