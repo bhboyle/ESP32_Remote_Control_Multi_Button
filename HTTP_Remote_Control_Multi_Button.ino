@@ -35,7 +35,7 @@ https://randomnerdtutorials.com/esp32-external-wake-up-deep-sleep/
 //#define NEOPIXEL TRUE // to be used to determine what to compile, individual LEDs or a single Neopixel
 
 // This next one needs to be calibrated before use
-#define BATTERYMULTIPLIER 0.0017808680994522 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
+#define BATTERYMULTIPLIER 0.0035020920502092 // this is the multiplier that is used to multiply the analog reading in to a battery voltage. This was calibrated initially with my multimeter
 
 // This next definition is a bitmask use the set the interrupt pins for waking up the esp32 from deep sleep
 //#define BUTTON_PIN_BITMASK 0x308008000 // GPIOs 15, 27, 32 and 33 -- Used for defining what GPIO pins are used to wake up the ESP32
@@ -112,6 +112,18 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LED, NEO_GRB + NEO_KHZ800);
 void setup()
 {
 
+#ifdef NEOPIXEL
+    pinMode(MOSFETpin, OUTPUT); //  set the output used by the Addressable LED to output
+    delay(50);                  // wait a little bit of time to give the neopixels time to settle.
+    pixels.begin();             // INITIALIZE NeoPixel strip object (REQUIRED)
+    pixels.clear();             // Set all pixel colors to 'off'
+#else
+    pinMode(LED, OUTPUT);
+    digitalWrite(LED, LOW);
+    pinMode(failedLED, OUTPUT);
+    digitalWrite(failedLED, LOW);
+#endif
+
     EEPROM.begin(EEPROM_SIZE); // start the EEPROM
 
     bootCounter = readIntFromEEPROM(bootCountAddr); // get the current location from EEPROM for the counter variable
@@ -124,6 +136,16 @@ void setup()
             bootCounter = 0;
             writeIntIntoEEPROM(bootCountAddr, 0);
             writeIntIntoEEPROM(bootTypeAddr, 0);
+#ifdef NEOPIXEL
+            SetLEDColor(255, 0, 0);
+            delay(1500); // wait five seconds
+            // turn off LED
+            SetLEDColor(0, 0, 0);
+#else
+            digitalWrite(failedLED, HIGH); // turn on the failedLED
+            delay(1500);
+            digitalWrite(failedLED, LOW); // turn off the failedLED
+#endif
             gotosleep();
         }
     }
@@ -135,6 +157,7 @@ void setup()
     Serial.println(bootType);
     Serial.print(" Boot Count =");
     Serial.println(bootCounter);
+
     pinMode(13, OUTPUT);
     digitalWrite(13, LOW);
     pinMode(button1, INPUT_PULLDOWN); // set the GPIO inputs correctly and turn on the internal pull down resistor
@@ -162,7 +185,6 @@ void setup()
 
     WiFi.reconnect();
     WiFi.mode(WIFI_STA);    // set the WIFI mode to Station
-    // delay(1000);            // *** added to try and make connecting to WIFI better and more consistant
     WiFi.begin(ssid, pass); // start up the WIFI
 
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
@@ -181,18 +203,8 @@ void setup()
     // This second WIFI status is used to do indicate a failed connection and then put the ESP32 in deep sleep
     if (WiFi.status() != WL_CONNECTED)
     { // if it can not connect to the wifi
-      // light a red LED
+      // write the boot verion and count into eeprom and reboot
 
-#ifdef NEOPIXEL
-        SetLEDColor(255, 0, 0);
-        delay(5000); // wait five seconds
-        // turn off LED
-        SetLEDColor(0, 0, 0);
-#else
-        digitalWrite(failedLED, HIGH); // turn on the failedLED
-        delay(500);
-        digitalWrite(failedLED, LOW); // turn off the failedLED
-#endif
         // gotosleep();
         bootCounter++;
         bootType = 1;
@@ -219,13 +231,15 @@ void setup()
     int wifiStrength = WiFi.RSSI();
 
     // convert the wifi signal strength to a char array for sending to the MQTT server
-
     itoa(wifiStrength, wifistr, 10); // do the actual conversion
 
     // read the battery voltage via an analog read and convert it to a basic float
     float volts = getBatteryVoltage();
 
     dtostrf(volts, 4, 2, BatteryVoltageChar); // convert from Float to Char
+
+    //**** temp string here delete after testing
+    // String BatteryVoltageString = String(analogRead(batteryVOLTAGE));
 
     // if the battery voltage is below 3.4 volts then set the batteryStatus flag
     if (volts < thresholdVoltage)
@@ -236,9 +250,11 @@ void setup()
     // call the function that will react to button pushes
     print_GPIO_wake_up(); // this is the hart of this program
 
+    // send the current battery voltage and WIFI signal strength
     sendHTTPrequest("details.php?remote=" + String(deviceName) +
                     "&wifi=" + String(wifistr) +
                     "&battery=" + String(BatteryVoltageChar)); // call the HTTP request function
+                                                               //"&battery=" + String(BatteryVoltageString));
 
     // if the batteryStatus flag is set, flash the failed LED five times to indicate a low battery
     if (batteryStatus)
@@ -280,6 +296,9 @@ float getBatteryVoltage()
 {
     // read the voltage of the battery
     int batteryValue = analogRead(batteryVOLTAGE);
+
+    Serial.print("Battery reading = ");
+    Serial.println(batteryValue);
 
     // convert it to a true voltage floating point value
     float temp = batteryValue * BATTERYMULTIPLIER;
